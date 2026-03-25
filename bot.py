@@ -24,6 +24,7 @@ log = logging.getLogger(__name__)
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 GUILD_ID = int(os.getenv("DISCORD_GUILD_ID"))
 MEMBER_ROLE_NAME = "DSA Member"
+LAPSED_ROLE_NAME = "Lapsed Member"
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 intents = discord.Intents.default()
@@ -34,6 +35,10 @@ tree = app_commands.CommandTree(client)
 
 def get_member_role(guild: discord.Guild) -> discord.Role | None:
     return discord.utils.get(guild.roles, name=MEMBER_ROLE_NAME)
+
+
+def get_lapsed_role(guild: discord.Guild) -> discord.Role | None:
+    return discord.utils.get(guild.roles, name=LAPSED_ROLE_NAME)
 
 
 @client.event
@@ -140,10 +145,16 @@ async def confirm(interaction: discord.Interaction, code: str):
 
     guild = client.get_guild(GUILD_ID)
     role = get_member_role(guild)
+    lapsed_role = get_lapsed_role(guild)
     guild_member = guild.get_member(interaction.user.id)
 
-    if role and guild_member:
-        await guild_member.add_roles(role, reason="Verified DSA member via /verify")
+    if guild_member:
+        roles_to_add = [r for r in [role] if r]
+        roles_to_remove = [r for r in [lapsed_role] if r and r in guild_member.roles]
+        if roles_to_add:
+            await guild_member.add_roles(*roles_to_add, reason="Verified DSA member via /verify")
+        if roles_to_remove:
+            await guild_member.remove_roles(*roles_to_remove, reason="Membership re-verified")
 
     add_member(discord_id, email)
 
@@ -235,8 +246,9 @@ async def weekly_sync():
         return
     guild = client.get_guild(GUILD_ID)
     role = get_member_role(guild)
+    lapsed_role = get_lapsed_role(guild)
     if guild and role:
-        await run_sync(guild, role)
+        await run_sync(guild, role, lapsed_role)
     else:
         log.warning("Weekly sync skipped — could not find guild or DSA Member role.")
 

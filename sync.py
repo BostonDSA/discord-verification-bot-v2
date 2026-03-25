@@ -15,10 +15,10 @@ LAPSE_MESSAGE = (
 )
 
 
-async def run_sync(guild: discord.Guild, member_role: discord.Role):
+async def run_sync(guild: discord.Guild, member_role: discord.Role, lapsed_role: discord.Role | None = None):
     """
     Checks all verified members against Action Network.
-    Removes the DSA Member role and DMs anyone whose membership has lapsed.
+    Removes the DSA Member role, assigns the Lapsed Member role, and DMs anyone whose membership has lapsed.
     """
     members = get_all_active_members()
     log.info(f"Weekly sync started — checking {len(members)} members.")
@@ -45,9 +45,14 @@ async def run_sync(guild: discord.Guild, member_role: discord.Role):
         guild_member = guild.get_member(int(discord_id))
         if guild_member:
             try:
-                await guild_member.remove_roles(member_role, reason="Membership lapsed (weekly sync)")
+                roles_to_remove = [r for r in [member_role] if r in guild_member.roles]
+                roles_to_add = [r for r in [lapsed_role] if r and r not in guild_member.roles]
+                if roles_to_remove:
+                    await guild_member.remove_roles(*roles_to_remove, reason="Membership lapsed (weekly sync)")
+                if roles_to_add:
+                    await guild_member.add_roles(*roles_to_add, reason="Membership lapsed (weekly sync)")
             except discord.Forbidden:
-                log.warning(f"Missing permissions to remove role from {discord_id}")
+                log.warning(f"Missing permissions to update roles for {discord_id}")
 
             try:
                 await guild_member.send(LAPSE_MESSAGE)
