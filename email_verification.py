@@ -1,22 +1,24 @@
 import os
-import random
+import secrets
 import smtplib
 import time
 from email.mime.text import MIMEText
 
 CODE_TTL = 600  # 10 minutes
+MAX_ATTEMPTS = 5
 
-# In-memory store: discord_id -> {code, email, expires_at}
+# In-memory store: discord_id -> {code, email, expires_at, attempts}
 _pending: dict = {}
 
 
 def generate_and_send(discord_id: str, email: str):
     """Send a 6-digit verification code to the given email address."""
-    code = f"{random.randint(0, 999999):06d}"
+    code = f"{secrets.randbelow(1_000_000):06d}"
     _pending[discord_id] = {
         "code": code,
         "email": email,
         "expires_at": time.time() + CODE_TTL,
+        "attempts": 0,
     }
 
     msg = MIMEText(
@@ -45,6 +47,12 @@ def verify_code(discord_id: str, code: str) -> tuple[bool, str | None]:
     if time.time() > pending["expires_at"]:
         del _pending[discord_id]
         return False, None
+
+    pending["attempts"] += 1
+    if pending["attempts"] > MAX_ATTEMPTS:
+        del _pending[discord_id]
+        return False, None
+
     if pending["code"] != code:
         return False, None
 

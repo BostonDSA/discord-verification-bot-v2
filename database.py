@@ -9,7 +9,7 @@ def init_db():
         conn.execute("""
             CREATE TABLE IF NOT EXISTS members (
                 discord_id TEXT PRIMARY KEY,
-                email TEXT NOT NULL,
+                email TEXT NOT NULL UNIQUE,
                 verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_checked TIMESTAMP,
                 is_active INTEGER DEFAULT 1
@@ -59,6 +59,13 @@ def deactivate_member(discord_id: str):
         conn.execute(
             "UPDATE members SET is_active = 0 WHERE discord_id = ?", (discord_id,)
         )
+
+
+def get_member_by_email(email: str):
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT * FROM members WHERE email = ? AND is_active = 1", (email,)
+        ).fetchone()
 
 
 def update_last_checked(discord_id: str):
